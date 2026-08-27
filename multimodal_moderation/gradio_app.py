@@ -6,9 +6,9 @@ customer service agents. The AI plays the role of a customer with complaints,
 and all service agent messages/media are moderated before being sent to the AI.
 
 DATA FLOW:
-1. Service agent (user) sends message/media → Gradio interface
+1. Service agent (user) sends message/media -> Gradio interface
 2. Content sent to FastAPI moderation service (via HTTP)
-3. If safe → Content sent to Gemini AI (which plays customer role)
+3. If safe -> Content sent to Gemini AI (which plays customer role)
 4. AI customer response returned to user
 
 KEY COMPONENTS:
@@ -26,7 +26,7 @@ from typing import List, Tuple, Any
 from pydantic_ai.messages import BinaryContent
 import logging
 
-from multimodal_moderation.env import API_BASE_URL, MOCK_AI, USER_API_KEY
+from multimodal_moderation.env import API_BASE_URL, GRADIO_SERVER_PORT, MOCK_AI, USER_API_KEY
 from multimodal_moderation.tracing import setup_tracing, get_tracer, add_media_to_span
 from multimodal_moderation.agents.customer_agent import customer_agent
 from multimodal_moderation.utils import detect_file_type
@@ -183,14 +183,15 @@ def check_content_safety(*, text: str | None = None, media: str | None = None) -
         # Update span name now that we know the content type
         span.update_name(f"moderate_{content_type}")
 
-    # Check if any unsafe flags were set by the moderation service
+    # Prefer the model-level computed flag, while keeping compatibility with older backend responses.
     config = MODERATION_CONFIG[content_type]
-    for flag in config["unsafe_flags"]:
-        if result[flag]:
-            # Content is unsafe - return False with feedback
-            return False, f"Content flagged: {feedback}", mime_type
+    is_flagged = result.get("is_flagged")
+    if is_flagged is None:
+        is_flagged = any(result[flag] for flag in config["unsafe_flags"])
 
-    # Content is safe - return True with feedback
+    if is_flagged:
+        return False, feedback, mime_type
+
     return True, feedback, mime_type
 
 
@@ -270,7 +271,7 @@ class ChatSessionWithTracing:
 
                     if not is_safe:
                         # Content flagged - block and return error
-                        feedback = f"⚠️ Content flagged: {safety_message}"
+                        feedback = f"[Warning] Content flagged: {safety_message}"
                         response = "[This content was flagged by moderation and not sent to the AI. Please try again.]"
 
                         span.set_attribute("feedback", feedback)
@@ -293,7 +294,7 @@ class ChatSessionWithTracing:
 
                             if not is_safe:
                                 # Content flagged - block and return error
-                                feedback = f"⚠️ Content flagged: {safety_message}"
+                                feedback = f"[Warning] Content flagged: {safety_message}"
                                 response = (
                                     "[This content was flagged by moderation and not sent to the AI. Please try again.]"
                                 )
@@ -385,7 +386,7 @@ def create_chat_interface() -> gr.Blocks:
         # Create feedback_display first (with render=False) so we can reference it
         # in ChatInterface's additional_outputs below, then render it in the sidebar later
         feedback_display = gr.Textbox(
-            label="💬 Moderation Agent Feedback",
+            label="Moderation Agent Feedback",
             placeholder="No feedback yet",
             interactive=False,
             visible=True,
@@ -394,7 +395,7 @@ def create_chat_interface() -> gr.Blocks:
         )
 
         # UI Layout
-        gr.Markdown("# 🤖 ACME Customer Service Training Agent")
+        gr.Markdown("# ACME Customer Service Training Agent")
         gr.Markdown("Welcome to ACME Corporation's customer service training!")
 
         with gr.Row():
@@ -414,7 +415,7 @@ def create_chat_interface() -> gr.Blocks:
                     chatbot=gr.Chatbot(
                         show_copy_button=True,
                         type="messages",  # Use messages format for multimodal support
-                        placeholder="👋 Start by greeting the customer or introducing yourself. The AI customer will respond with their complaint.",
+                        placeholder="Start by greeting the customer or introducing yourself. The AI customer will respond with their complaint.",
                         height="75vh",
                     ),
                     additional_inputs=[past_messages_state],  # This should be a list containing past_messages_state
@@ -430,14 +431,14 @@ def create_chat_interface() -> gr.Blocks:
                 feedback_display.render()
 
                 # End conversation button - closes the tracing span
-                end_button = gr.Button("📞 End Conversation", variant="secondary")
+                end_button = gr.Button("End Conversation", variant="secondary")
                 end_status = gr.Textbox(
                     label="Status",
                     interactive=False,
                     visible=False,
                 )
 
-                gr.Markdown("### 📋 Chat Guidelines")
+                gr.Markdown("### Chat Guidelines")
                 gr.Markdown(
                     """
                 The AI acts as a customer complaining about an ACME product. Try to resolve the customer's issue.
@@ -445,7 +446,7 @@ def create_chat_interface() -> gr.Blocks:
                 """
                 )
 
-                gr.Markdown("### 🔒 Content Moderation")
+                gr.Markdown("### Content Moderation")
                 gr.Markdown(
                     """
                 All messages and media are automatically checked for:
@@ -466,8 +467,9 @@ def create_chat_interface() -> gr.Blocks:
 def main():
     """Main function to run the Gradio app"""
     demo = create_chat_interface()
-    demo.launch(server_name="0.0.0.0", server_port=7860, share=False, show_error=True)
+    demo.launch(server_name="127.0.0.1", server_port=GRADIO_SERVER_PORT, share=False, show_error=True)
 
 
 if __name__ == "__main__":
     main()
+

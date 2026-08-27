@@ -4,7 +4,7 @@ from fastapi import Depends, FastAPI, HTTPException, UploadFile, File
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
-from multimodal_moderation.env import get_default_model_choice, MOCK_AI, USER_API_KEY
+from multimodal_moderation.env import API_SERVER_PORT, get_default_model_choice, MOCK_AI, USER_API_KEY
 from multimodal_moderation.utils import detect_file_type
 from multimodal_moderation.types.moderation_result import (
     TextModerationResult,
@@ -107,7 +107,7 @@ async def health_check():
 def main():
     import uvicorn
 
-    uvicorn.run("multimodal_moderation.fastapi_app:app", host="0.0.0.0", port=8000, reload=True, log_level="trace")
+    uvicorn.run("multimodal_moderation.fastapi_app:app", host="127.0.0.1", port=API_SERVER_PORT, reload=True, log_level="info")
 
 
 if __name__ == "__main__":

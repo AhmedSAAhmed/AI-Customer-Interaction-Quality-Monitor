@@ -178,3 +178,6 @@ workdir/
 # Local runtime data
 .phoenix/
 uploaded_media/
+.sonarlint/
+submission_evidence/
+test-results.txt

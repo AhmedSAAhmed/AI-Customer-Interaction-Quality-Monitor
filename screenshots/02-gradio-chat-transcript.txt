@@ -1,0 +1,7 @@
+SAFE TURN
+response: "Mock customer: I'm frustrated that my ACME Power Widget Pro shut down, but I appreciate your help. What can you do for me?"
+feedback: 'Mock moderation: content was checked locally without calling Gemini.'
+
+FLAGGED TURN
+response: '[This content was flagged by moderation and not sent to the AI. Please try again.]'
+feedback: '[Warning] Content flagged: Mock moderation: content was checked locally without calling Gemini.'
